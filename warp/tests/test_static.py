@@ -579,6 +579,28 @@ def test_static_function_hash(test, _):
     test.assertEqual(hash1, hash3)
 
 
+def test_static_builtin_hash(test, device):
+    def make_kernel(op):
+        @wp.kernel
+        def static_builtin_kernel(x: float, output: wp.array[float]):
+            output[0] = wp.static(op)(x)
+
+        return static_builtin_kernel
+
+    x = 0.5
+    for ops in ((wp.sin, wp.exp), (wp.exp, wp.sin)):
+        kernels = []
+        for op in ops:
+            kernel = make_kernel(op)
+            output = wp.empty(1, dtype=float, device=device)
+            wp.launch(kernel, dim=1, inputs=[x], outputs=[output], device=device)
+
+            kernels.append(kernel)
+            test.assertAlmostEqual(output.numpy()[0], op(x), places=6)
+
+        test.assertNotEqual(kernels[0].hash, kernels[1].hash)
+
+
 @wp.kernel
 def static_len_query_kernel(v1: wp.vec2):
     v2 = wp.vec3()
@@ -753,6 +775,7 @@ add_function_test(TestStatic, "test_static_if_else_elif", test_static_if_else_el
 
 add_function_test(TestStatic, "test_static_constant_hash", test_static_constant_hash, devices=None)
 add_function_test(TestStatic, "test_static_function_hash", test_static_function_hash, devices=None)
+add_function_test(TestStatic, "test_static_builtin_hash", test_static_builtin_hash, devices=devices)
 add_function_test(TestStatic, "test_static_len_query", test_static_len_query, devices=None)
 add_function_test(
     TestStatic,
